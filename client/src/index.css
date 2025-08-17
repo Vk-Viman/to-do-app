@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom components */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium shadow-soft
+      bg-sky-600 text-white hover:bg-sky-500 active:bg-sky-700 transition;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium border border-slate-300
+      text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800 transition;
+  }
+  .card {
+    @apply rounded-xl bg-white/80 backdrop-blur shadow-soft border border-slate-200
+      dark:bg-slate-900/60 dark:border-slate-800;
+  }
+  .input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none
+      focus:ring-4 focus:ring-sky-100 focus:border-sky-400
+      dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-sky-900/40;
+  }
+  .checkbox {
+    @apply h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500;
+  }
+}
