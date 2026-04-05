@@ -33,10 +33,11 @@ function refreshTokenExpiryDate() {
 }
 
 function refreshCookieOptions() {
+  const secure = NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure: NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure,
+    sameSite: secure ? 'none' : 'lax',
     path: '/api/auth',
     maxAge: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000
   };
