@@ -1,69 +1,88 @@
 # MERN To-Do App
 
-A production-style full-stack to-do application built with the MERN stack.
-It includes JWT authentication, protected routes, and user-scoped task management.
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111827)
+![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-1F2937)
+
+Production-style full-stack to-do application with JWT auth, protected routes, and user-scoped task management.
+
+## Quick Start (60 Seconds)
+
+```bash
+# 1) Install dependencies
+cd client && npm install
+cd ../server && npm install
+
+# 2) Configure environment
+copy .env.example .env
+
+# 3) Start API (terminal A)
+npm run dev
+
+# 4) Start web app (terminal B)
+cd ../client && npm run dev
+```
+
+Open http://localhost:5173
 
 ## Table of Contents
 
-1. Overview
+1. Product Overview
 2. Core Features
-3. Architecture
+3. System Architecture
 4. Tech Stack
-5. Repository Structure
+5. Project Structure
 6. API Reference
 7. Data Model
-8. Local Development Setup
+8. Local Development
 9. Environment Variables
-10. Available Scripts
-11. Security Notes
+10. Scripts
+11. Security Practices
 12. Deployment Notes
 13. Troubleshooting
 
-## Overview
+## Product Overview
 
-This project is designed as a clean, modern starter for authenticated CRUD applications.
-Users can register, sign in, and manage personal tasks.
-Each task operation is scoped to the authenticated user on the server side.
+This repository is structured as two independently deployable applications:
 
-The repository is split into two applications:
+- `client`: React single-page application (Vite + Tailwind CSS)
+- `server`: Express REST API with MongoDB via Mongoose
 
-- client: React SPA (Vite + Tailwind CSS)
-- server: Express API with MongoDB (Mongoose)
+Each authenticated user can only access and mutate their own tasks. Server-side filtering by `req.userId` enforces this boundary.
 
 ## Core Features
 
-- User registration and login with hashed passwords (bcrypt)
-- JWT-based stateless authentication
-- Protected client routes
-- Task CRUD operations:
-- create task
-- list user tasks
-- toggle task completion
-- delete task
-- Dark mode toggle persisted to localStorage
-- Clean Tailwind-based UI components
+- User registration with password hashing (`bcryptjs`)
+- User login with JWT token issuance
+- Protected route handling on the client
+- Axios auth interceptor for automatic Bearer token propagation
+- Task lifecycle operations:
+- create
+- list
+- update completion/title
+- delete
+- Light/dark theme toggle with local preference persistence
 
-## Architecture
+## System Architecture
 
-```text
-Browser (React + Router + Axios)
-        |
-        |  Authorization: Bearer <JWT>
-        v
-Express API (auth routes + task routes)
-        |
-        v
-MongoDB (Users, Tasks)
+```mermaid
+flowchart LR
+        A[React Client] -->|HTTP + Bearer JWT| B[Express API]
+        B --> C[(MongoDB)]
+        B --> D[JWT Verification Middleware]
+        D --> B
 ```
 
-Request flow summary:
+Authentication and request lifecycle:
 
-1. User logs in or registers via /api/auth.
-2. Server returns a signed JWT.
-3. Client stores token in localStorage.
-4. Axios interceptor adds Bearer token automatically.
-5. Protected API endpoints verify JWT and attach req.userId.
-6. Task queries are filtered by req.userId, enforcing data isolation.
+1. User signs up or logs in via `/api/auth/*`.
+2. API returns signed JWT (`expiresIn: 7d`).
+3. Token is stored in browser local storage.
+4. Axios interceptor injects `Authorization: Bearer <token>`.
+5. Protected endpoints verify JWT and attach `req.userId`.
+6. Task queries include user filter (`{ user: req.userId }`).
 
 ## Tech Stack
 
@@ -72,20 +91,21 @@ Client:
 - React 18
 - React Router 6
 - Axios
-- Vite
-- Tailwind CSS
+- Vite 5
+- Tailwind CSS 3
 
 Server:
 
-- Node.js + Express 4
+- Node.js (ESM)
+- Express 4
 - MongoDB + Mongoose
-- JSON Web Token (jsonwebtoken)
+- jsonwebtoken
 - bcryptjs
 - dotenv
 - morgan
 - cors
 
-## Repository Structure
+## Project Structure
 
 ```text
 .
@@ -113,151 +133,186 @@ Server:
 
 ## API Reference
 
-Base URL:
+Base URL: `http://localhost:4000/api`
 
-- http://localhost:4000/api
+### Auth
 
-Auth routes:
+`POST /auth/register`
 
-- POST /auth/register
-- Body: { "email": "user@example.com", "password": "secret123" }
-- Response: { "token": "...", "user": { "id": "...", "email": "..." } }
+```json
+{
+        "email": "user@example.com",
+        "password": "secret123"
+}
+```
 
-- POST /auth/login
-- Body: { "email": "user@example.com", "password": "secret123" }
-- Response: { "token": "...", "user": { "id": "...", "email": "..." } }
+`POST /auth/login`
 
-- GET /auth/me
-- Header: Authorization: Bearer <token>
-- Response: { "user": { "_id": "...", "email": "..." } }
+```json
+{
+        "email": "user@example.com",
+        "password": "secret123"
+}
+```
 
-Task routes (all protected):
+Typical auth response:
 
-- GET /tasks
-- Response: [ { "_id": "...", "title": "...", "completed": false, ... } ]
+```json
+{
+        "token": "<jwt>",
+        "user": {
+                "id": "<userId>",
+                "email": "user@example.com"
+        }
+}
+```
 
-- POST /tasks
-- Body: { "title": "Buy groceries" }
+`GET /auth/me` (protected)
 
-- PATCH /tasks/:id
-- Body (optional fields): { "title": "Updated", "completed": true }
+- Header: `Authorization: Bearer <token>`
 
-- DELETE /tasks/:id
-- Response: { "ok": true }
+### Tasks (Protected)
+
+`GET /tasks`
+
+`POST /tasks`
+
+```json
+{
+        "title": "Buy groceries"
+}
+```
+
+`PATCH /tasks/:id`
+
+```json
+{
+        "title": "Buy groceries and fruit",
+        "completed": true
+}
+```
+
+`DELETE /tasks/:id`
 
 ## Data Model
 
-User:
+`User`
 
-- email: string (unique, lowercased)
-- password: string (hashed)
-- timestamps
+- `email`: string, unique, lowercased, trimmed
+- `password`: hashed string
+- `createdAt`, `updatedAt`
 
-Task:
+`Task`
 
-- user: ObjectId (ref User)
-- title: string
-- completed: boolean
-- timestamps
+- `user`: ObjectId reference to `User`
+- `title`: string
+- `completed`: boolean
+- `createdAt`, `updatedAt`
 
-## Local Development Setup
+## Local Development
 
 Prerequisites:
 
 - Node.js 18+
 - npm 9+
-- MongoDB Atlas cluster or local MongoDB instance
+- MongoDB Atlas or local MongoDB
 
-1. Install client dependencies:
+1. Install client dependencies
 
 ```bash
 cd client
 npm install
 ```
 
-2. Install server dependencies:
+2. Install server dependencies
 
 ```bash
 cd ../server
 npm install
 ```
 
-3. Create environment file:
+3. Create local env file
 
 ```bash
 copy .env.example .env
 ```
 
-4. Update .env values (Mongo URI and JWT secret).
+4. Set `MONGODB_URI` and `JWT_SECRET` in `.env`
 
-5. Start backend:
+5. Run API
 
 ```bash
-cd server
 npm run dev
 ```
 
-6. Start frontend (new terminal):
+6. Run client in a second terminal
 
 ```bash
-cd client
+cd ../client
 npm run dev
 ```
 
-7. Open app:
-
-- http://localhost:5173
+7. Navigate to `http://localhost:5173`
 
 ## Environment Variables
 
-Server variables in server/.env:
+Server `.env` variables:
 
-- PORT: API port (default 4000)
-- MONGODB_URI: MongoDB connection string
-- JWT_SECRET: strong random signing key for tokens
+- `PORT` (default `4000`)
+- `MONGODB_URI`
+- `JWT_SECRET`
 
-## Available Scripts
+Use [server/.env.example](server/.env.example) as the source of truth for required keys.
 
-Client (client/package.json):
+## Scripts
 
-- npm run dev: start Vite dev server
-- npm run build: production build
-- npm run preview: preview production build
+Client (`client/package.json`):
 
-Server (server/package.json):
+- `npm run dev` - start development server
+- `npm run build` - create production build
+- `npm run preview` - preview production build
 
-- npm run dev: start API with nodemon
-- npm start: start API with node
+Server (`server/package.json`):
 
-## Security Notes
+- `npm run dev` - start API with nodemon
+- `npm start` - start API with node
 
-- Never commit .env files or secrets.
-- Rotate credentials immediately if leaked.
-- Use a long, random JWT secret in non-dev environments.
-- Prefer short token lifetimes and refresh-token strategy for production-scale auth.
-- Restrict CORS origin in server/src/index.js for deployment environments.
+## Security Practices
+
+- Never commit `.env` files.
+- Keep only placeholders in `.env.example`.
+- Rotate credentials immediately after any exposure event.
+- Use strong random `JWT_SECRET` values in each environment.
+- Restrict CORS origins for staging/production domains.
+- Prefer HTTPS and managed secret storage in deployed environments.
 
 ## Deployment Notes
 
-- Client and server can be deployed independently.
-- Set the API base URL in client/src/api.js to your deployed server URL.
-- Ensure MongoDB network access and credentials are production-ready.
-- Add reverse proxy and HTTPS in production.
+- Deploy client and server separately if needed.
+- Update `client/src/api.js` base URL for non-local environments.
+- Ensure MongoDB access controls are locked down to required IPs/services.
+- Add reverse proxy, TLS termination, and logging/monitoring in production.
 
 ## Troubleshooting
 
-- Mongo connection error:
-- verify MONGODB_URI and database network access
+Mongo connection errors:
 
-- 401 Unauthorized on protected routes:
-- verify token exists in localStorage and Authorization header is sent
+- Verify `MONGODB_URI` format and credentials.
+- Confirm database network rules allow your host.
 
-- CORS errors in browser:
-- ensure deployed frontend origin is allowed in the server CORS configuration
+401 Unauthorized responses:
 
-- Port in use:
-- change PORT in server/.env or stop conflicting process
+- Ensure token exists in local storage.
+- Ensure `Authorization` header is present and formatted as Bearer token.
+
+CORS errors:
+
+- Add your frontend origin to server CORS allowlist.
+
+Port conflicts:
+
+- Change `PORT` in `.env` or stop conflicting process.
 
 ---
 
-Maintained as a practical full-stack reference implementation for MERN authentication and CRUD patterns.
+This README is intentionally production-oriented and can evolve as features grow (screenshots, testing matrix, CI/CD, and release notes).
