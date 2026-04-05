@@ -11,6 +11,7 @@ import taskRoutes from './routes/tasks.js';
 import { ApiError, errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 const app = express();
+const REFRESH_TOKEN_COOKIE = 'refreshToken';
 
 const corsOptions = {
   origin(origin, callback) {
@@ -35,6 +36,27 @@ app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use('/api', apiLimiter);
+
+app.use('/api/auth', (req, _res, next) => {
+  const isUnsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  if (!isUnsafeMethod) return next();
+
+  const hasRefreshTokenCookie = Boolean(req.cookies?.[REFRESH_TOKEN_COOKIE]);
+  if (!hasRefreshTokenCookie) return next();
+
+  const origin = req.get('origin');
+  if (origin && origin !== CLIENT_ORIGIN) {
+    return next(new ApiError(403, 'CSRF_ORIGIN_DENIED', 'Request origin is not allowed'));
+  }
+
+  const csrfCookie = req.cookies?.csrfToken;
+  const csrfHeader = req.get('x-csrf-token');
+  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+    return next(new ApiError(403, 'CSRF_TOKEN_INVALID', 'CSRF token is missing or invalid'));
+  }
+
+  return next();
+});
 
 app.get('/', (_req, res) => res.send('API OK'));
 app.use('/api/auth', authRoutes);

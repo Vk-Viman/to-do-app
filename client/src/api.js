@@ -9,6 +9,14 @@ const api = axios.create({
   withCredentials: true
 });
 
+const getCookieValue = (name) => {
+  if (typeof document === 'undefined') return null;
+  const cookie = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.split('=')[1]) : null;
+};
+
 const shouldRefreshToken = (error) => {
   const status = error?.response?.status;
   const code = error?.response?.data?.error?.code;
@@ -22,6 +30,14 @@ const isAuthRoute = (url = '') => {
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  const method = String(config.method || 'get').toLowerCase();
+  const isUnsafeMethod = ['post', 'put', 'patch', 'delete'].includes(method);
+  if (isUnsafeMethod) {
+    const csrfToken = getCookieValue('csrfToken');
+    if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
+  }
+
   return config;
 });
 
