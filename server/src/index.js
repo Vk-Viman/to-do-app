@@ -6,12 +6,16 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import lusca from 'lusca';
-import { CLIENT_ORIGIN, MONGODB_URI, NODE_ENV, PORT } from './config.js';
+import { CLIENT_ORIGIN, MONGODB_URI, NODE_ENV, PORT, TRUST_PROXY } from './config.js';
 import authRoutes from './routes/auth.js';
 import taskRoutes from './routes/tasks.js';
 import { ApiError, errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 const app = express();
+
+// Trust the first proxy hop when TRUST_PROXY is set so that req.ip reflects
+// the real client IP for rate-limiting and audit logs.
+if (TRUST_PROXY) app.set('trust proxy', TRUST_PROXY);
 
 const corsOptions = {
   origin(origin, callback) {

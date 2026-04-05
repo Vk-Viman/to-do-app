@@ -130,31 +130,51 @@ router.post('/refresh', asyncHandler(async (req, res) => {
   if (!rawRefreshToken) throw new ApiError(401, 'REFRESH_TOKEN_MISSING', 'Refresh token is required');
 
   const oldTokenHash = hashToken(rawRefreshToken);
-  const existingToken = await RefreshToken.findOne({ tokenHash: oldTokenHash });
-  if (!existingToken) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
-
-  if (existingToken.revokedAt) {
-    throw new ApiError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh token has been revoked');
-  }
-
-  if (existingToken.expiresAt <= new Date()) {
-    existingToken.revokedAt = new Date();
-    existingToken.revokedByIp = req.ip;
-    await existingToken.save();
-    throw new ApiError(401, 'REFRESH_TOKEN_EXPIRED', 'Refresh token has expired');
-  }
-
-  const user = await User.findById(existingToken.user).select('_id email');
-  if (!user) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
-
+  const now = new Date();
   const newRefreshToken = generateRefreshToken();
   const newTokenHash = hashToken(newRefreshToken);
   const newExpiresAt = refreshTokenExpiryDate();
 
-  existingToken.revokedAt = new Date();
-  existingToken.revokedByIp = req.ip;
-  existingToken.replacedByHash = newTokenHash;
-  await existingToken.save();
+  // Atomically revoke the old token only if it is still active and unexpired.
+  // This prevents two concurrent /refresh calls from both succeeding with the
+  // same refresh token (token replay).
+  const existingToken = await RefreshToken.findOneAndUpdate(
+    {
+      tokenHash: oldTokenHash,
+      revokedAt: null,
+      expiresAt: { $gt: now }
+    },
+    {
+      $set: {
+        revokedAt: now,
+        revokedByIp: req.ip,
+        replacedByHash: newTokenHash
+      }
+    },
+    { new: false }
+  );
+
+  if (!existingToken) {
+    const tokenDoc = await RefreshToken.findOne({ tokenHash: oldTokenHash });
+    if (!tokenDoc) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
+
+    if (tokenDoc.revokedAt) {
+      throw new ApiError(401, 'REFRESH_TOKEN_REVOKED', 'Refresh token has been revoked');
+    }
+
+    if (tokenDoc.expiresAt <= now) {
+      await RefreshToken.updateOne(
+        { _id: tokenDoc._id, revokedAt: null },
+        { $set: { revokedAt: now, revokedByIp: req.ip } }
+      );
+      throw new ApiError(401, 'REFRESH_TOKEN_EXPIRED', 'Refresh token has expired');
+    }
+
+    throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
+  }
+
+  const user = await User.findById(existingToken.user).select('_id email');
+  if (!user) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
 
   await RefreshToken.create({
     user: user._id,
