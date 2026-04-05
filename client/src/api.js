@@ -17,6 +17,19 @@ const getCookieValue = (name) => {
   return cookie ? decodeURIComponent(cookie.split('=')[1]) : null;
 };
 
+let csrfBootstrapPromise = null;
+
+const ensureCsrfToken = async () => {
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = api.get('/csrf-token')
+      .catch(() => null)
+      .finally(() => {
+        csrfBootstrapPromise = null;
+      });
+  }
+  await csrfBootstrapPromise;
+};
+
 const shouldRefreshToken = (error) => {
   const status = error?.response?.status;
   const code = error?.response?.data?.error?.code;
@@ -27,13 +40,14 @@ const isAuthRoute = (url = '') => {
   return url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh') || url.includes('/auth/logout');
 };
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   const method = String(config.method || 'get').toLowerCase();
   const isUnsafeMethod = ['post', 'put', 'patch', 'delete'].includes(method);
   if (isUnsafeMethod) {
+    await ensureCsrfToken();
     const csrfToken = getCookieValue('csrfToken');
     if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
   }

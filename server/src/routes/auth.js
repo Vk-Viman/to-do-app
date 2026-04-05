@@ -18,7 +18,6 @@ const authBodySchema = z.object({
 });
 
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
-const CSRF_TOKEN_COOKIE = 'csrfToken';
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -26,10 +25,6 @@ function hashToken(token) {
 
 function generateRefreshToken() {
   return crypto.randomBytes(64).toString('hex');
-}
-
-function generateCsrfToken() {
-  return crypto.randomBytes(32).toString('hex');
 }
 
 function refreshTokenExpiryDate() {
@@ -55,9 +50,12 @@ function refreshCookieOptions() {
 }
 
 function csrfCookieOptions() {
+  const secure = NODE_ENV === 'production';
   return {
-    ...authCookieOptions(),
-    httpOnly: false
+    path: '/api',
+    httpOnly: false,
+    secure,
+    sameSite: secure ? 'none' : 'lax'
   };
 }
 
@@ -85,10 +83,6 @@ function setRefreshCookie(res, token) {
   res.cookie(REFRESH_TOKEN_COOKIE, token, refreshCookieOptions());
 }
 
-function setCsrfCookie(res, token) {
-  res.cookie(CSRF_TOKEN_COOKIE, token, csrfCookieOptions());
-}
-
 function clearRefreshCookie(res) {
   res.clearCookie(REFRESH_TOKEN_COOKIE, {
     ...refreshCookieOptions(),
@@ -97,7 +91,7 @@ function clearRefreshCookie(res) {
 }
 
 function clearCsrfCookie(res) {
-  res.clearCookie(CSRF_TOKEN_COOKIE, {
+  res.clearCookie('csrfToken', {
     ...csrfCookieOptions(),
     maxAge: undefined
   });
@@ -112,9 +106,7 @@ router.post('/register', validate(authBodySchema), asyncHandler(async (req, res)
   const user = await User.create({ email: normalizedEmail, password });
   const token = signToken(user._id);
   const refreshToken = await issueRefreshToken(user._id, req.ip);
-  const csrfToken = generateCsrfToken();
   setRefreshCookie(res, refreshToken);
-  setCsrfCookie(res, csrfToken);
 
   res.status(201).json({ token, user: { id: user._id, email: user.email } });
 }));
@@ -129,9 +121,7 @@ router.post('/login', validate(authBodySchema), asyncHandler(async (req, res) =>
 
   const token = signToken(user._id);
   const refreshToken = await issueRefreshToken(user._id, req.ip);
-  const csrfToken = generateCsrfToken();
   setRefreshCookie(res, refreshToken);
-  setCsrfCookie(res, csrfToken);
   res.json({ token, user: { id: user._id, email: user.email } });
 }));
 
@@ -174,7 +164,6 @@ router.post('/refresh', asyncHandler(async (req, res) => {
   });
 
   setRefreshCookie(res, newRefreshToken);
-  setCsrfCookie(res, generateCsrfToken());
   const token = signToken(user._id);
 
   res.json({ token, user: { id: user._id, email: user.email } });

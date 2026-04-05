@@ -5,13 +5,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import lusca from 'lusca';
 import { CLIENT_ORIGIN, MONGODB_URI, NODE_ENV, PORT } from './config.js';
 import authRoutes from './routes/auth.js';
 import taskRoutes from './routes/tasks.js';
 import { ApiError, errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 const app = express();
-const REFRESH_TOKEN_COOKIE = 'refreshToken';
 
 const corsOptions = {
   origin(origin, callback) {
@@ -37,29 +37,31 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use('/api', apiLimiter);
 
-app.use('/api/auth', (req, _res, next) => {
-  const isUnsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
-  if (!isUnsafeMethod) return next();
-
-  const hasRefreshTokenCookie = Boolean(req.cookies?.[REFRESH_TOKEN_COOKIE]);
-  if (!hasRefreshTokenCookie) return next();
-
-  const origin = req.get('origin');
-  if (origin && origin !== CLIENT_ORIGIN) {
-    return next(new ApiError(403, 'CSRF_ORIGIN_DENIED', 'Request origin is not allowed'));
+const secureCookie = NODE_ENV === 'production';
+const csrfProtection = lusca.csrf({
+  cookie: {
+    key: '_csrf',
+    path: '/api',
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: secureCookie ? 'none' : 'lax'
   }
-
-  const csrfCookie = req.cookies?.csrfToken;
-  const csrfHeader = req.get('x-csrf-token');
-  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
-    return next(new ApiError(403, 'CSRF_TOKEN_INVALID', 'CSRF token is missing or invalid'));
-  }
-
-  return next();
 });
 
 app.get('/', (_req, res) => res.send('API OK'));
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  const token = req.csrfToken();
+  res.cookie('csrfToken', token, {
+    path: '/api',
+    httpOnly: false,
+    secure: secureCookie,
+    sameSite: secureCookie ? 'none' : 'lax'
+  });
+  res.json({ csrfToken: token });
+});
+app.use('/api/auth', csrfProtection);
 app.use('/api/auth', authRoutes);
+app.use('/api/tasks', csrfProtection);
 app.use('/api/tasks', taskRoutes);
 
 app.use(notFoundHandler);
