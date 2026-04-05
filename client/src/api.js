@@ -17,7 +17,7 @@ const ensureCsrfToken = async () => {
   if (!csrfBootstrapPromise) {
     csrfBootstrapPromise = api.get('/csrf-token')
       .then(({ data }) => {
-        _csrfToken = data.csrfToken || null;
+        _csrfToken = data?.csrfToken ?? null;
         return _csrfToken;
       })
       .catch(() => null)
