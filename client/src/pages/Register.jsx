@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../api';
+import { getApiErrorMessage } from '../utils/api-error';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,7 @@ export default function Register() {
       localStorage.setItem('token', data.token);
       window.location.href = '/';
     } catch (e) {
-      setErr(e.response?.data?.message || 'Failed to register');
+      setErr(getApiErrorMessage(e, 'Failed to register'));
     }
   }
 

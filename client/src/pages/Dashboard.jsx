@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../api';
 import TodoInput from '../components/TodoInput.jsx';
 import TodoList from '../components/TodoList.jsx';
+import { getApiErrorMessage } from '../utils/api-error';
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -13,7 +14,7 @@ export default function Dashboard() {
       const { data } = await api.get('/tasks');
       setTasks(data);
     } catch (e) {
-      setErr(e.response?.data?.message || 'Failed to load tasks');
+      setErr(getApiErrorMessage(e, 'Failed to load tasks'));
     } finally {
       setLoading(false);
     }
@@ -24,7 +25,7 @@ export default function Dashboard() {
       const { data } = await api.post('/tasks', { title });
       setTasks(prev => [data, ...prev]);
     } catch (e) {
-      alert(e.response?.data?.message || 'Failed to add task');
+      alert(getApiErrorMessage(e, 'Failed to add task'));
     }
   }
 
@@ -32,8 +33,8 @@ export default function Dashboard() {
     try {
       const { data } = await api.patch(`/tasks/${t._id}`, { completed: !t.completed });
       setTasks(prev => prev.map(x => (x._id === data._id ? data : x)));
-    } catch {
-      alert('Failed to update task');
+    } catch (e) {
+      alert(getApiErrorMessage(e, 'Failed to update task'));
     }
   }
 
@@ -41,8 +42,8 @@ export default function Dashboard() {
     try {
       await api.delete(`/tasks/${t._id}`);
       setTasks(prev => prev.filter(x => x._id !== t._id));
-    } catch {
-      alert('Failed to delete task');
+    } catch (e) {
+      alert(getApiErrorMessage(e, 'Failed to delete task'));
     }
   }
 
