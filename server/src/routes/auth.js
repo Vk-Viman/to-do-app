@@ -170,6 +170,8 @@ router.post('/refresh', asyncHandler(async (req, res) => {
       throw new ApiError(401, 'REFRESH_TOKEN_EXPIRED', 'Refresh token has expired');
     }
 
+    // Defensive fallback: document exists but doesn't match any known failure
+    // mode (e.g. a future schema change). Keep as a safety net.
     throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
   }
 
