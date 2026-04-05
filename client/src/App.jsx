@@ -4,11 +4,17 @@ import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import DarkModeToggle from './components/DarkModeToggle.jsx';
+import api from './api';
 
 export default function App() {
   const token = localStorage.getItem('token');
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Clear local auth state even if server logout fails.
+    }
     localStorage.removeItem('token');
     window.location.href = '/login';
   };

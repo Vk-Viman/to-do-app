@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../api';
+import { getApiErrorMessage } from '../utils/api-error';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,7 @@ export default function Login() {
       localStorage.setItem('token', data.token);
       window.location.href = '/';
     } catch (e) {
-      setErr(e.response?.data?.message || 'Failed to login');
+      setErr(getApiErrorMessage(e, 'Failed to login'));
     }
   }
 
